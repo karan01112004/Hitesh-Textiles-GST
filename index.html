@@ -69,6 +69,9 @@
         <label>GSTIN
           <input type="text" id="p-gstin" placeholder="23AAAAA0000A1Z5" maxlength="15" autocapitalize="characters" required>
         </label>
+        <label>State <span class="optional">(auto-fills from GSTIN)</span>
+          <select id="p-state"></select>
+        </label>
         <label>Date
           <input type="date" id="p-date" required>
         </label>
@@ -123,7 +126,7 @@
       <table id="p-table">
         <thead>
           <tr>
-            <th>Vendor</th><th>GSTIN</th><th>Date</th><th>Bill #</th>
+            <th>Vendor</th><th>GSTIN</th><th>State</th><th>Date</th><th>Bill #</th>
             <th class="num">Taxable</th><th class="num">CGST</th><th class="num">SGST</th><th class="num">IGST</th>
             <th class="num">Freight</th><th class="num">Total</th><th>Type</th><th></th>
           </tr>
@@ -144,6 +147,9 @@
         </label>
         <label>GSTIN
           <input type="text" id="s-gstin" placeholder="23AAAAA0000A1Z5" maxlength="15" autocapitalize="characters" required>
+        </label>
+        <label>State <span class="optional">(auto-fills from GSTIN)</span>
+          <select id="s-state"></select>
         </label>
         <label>Date
           <input type="date" id="s-date" required>
@@ -199,7 +205,7 @@
       <table id="s-table">
         <thead>
           <tr>
-            <th>Client</th><th>GSTIN</th><th>Date</th><th>Bill #</th>
+            <th>Client</th><th>GSTIN</th><th>State</th><th>Date</th><th>Bill #</th>
             <th class="num">Taxable</th><th class="num">CGST</th><th class="num">SGST</th><th class="num">IGST</th>
             <th class="num">Freight</th><th class="num">Total</th><th>Type</th><th></th>
           </tr>
@@ -219,6 +225,9 @@
         </label>
         <label>GSTIN
           <input type="text" id="v-gstin" maxlength="15" autocapitalize="characters" required>
+        </label>
+        <label>State <span class="optional">(auto-fills from GSTIN)</span>
+          <select id="v-state"></select>
         </label>
         <label class="grow">Address <span class="optional">(optional)</span>
           <input type="text" id="v-address">
@@ -247,6 +256,9 @@
         </label>
         <label>GSTIN
           <input type="text" id="c-gstin" maxlength="15" autocapitalize="characters" required>
+        </label>
+        <label>State <span class="optional">(auto-fills from GSTIN)</span>
+          <select id="c-state"></select>
         </label>
         <label class="grow">Address <span class="optional">(optional)</span>
           <input type="text" id="c-address">

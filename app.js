@@ -74,8 +74,9 @@ function toast(msg){
   clearTimeout(toast._h);
   toast._h = setTimeout(()=>{ t.hidden = true; }, 2600);
 }
-function populateStateSelect(sel){
-  sel.innerHTML = STATE_CODES.map(([c,n])=>`<option value="${c}">${c} — ${n}</option>`).join("");
+function populateStateSelect(sel, includeBlank){
+  const blank = includeBlank ? `<option value="">Select state…</option>` : "";
+  sel.innerHTML = blank + STATE_CODES.map(([c,n])=>`<option value="${c}">${c} — ${n}</option>`).join("");
 }
 
 /* ============================================================
@@ -140,14 +141,22 @@ function makePartyModule(prefix, dataKey, formId){
   const form = document.getElementById(formId);
   const nameEl = document.getElementById(`${prefix}-name`);
   const gstinEl = document.getElementById(`${prefix}-gstin`);
+  const stateEl = document.getElementById(`${prefix}-state`);
   const addrEl = document.getElementById(`${prefix}-address`);
   const tbody = document.getElementById(`${prefix}-tbody`);
   const empty = document.getElementById(`${prefix}-empty`);
   const cancelBtn = document.getElementById(`${prefix}-cancelEdit`);
   let editingId = null;
 
+  populateStateSelect(stateEl, true);
+  gstinEl.addEventListener("input", ()=>{
+    const code = stateCodeFromGSTIN(gstinEl.value.trim().toUpperCase());
+    if(code) stateEl.value = code; // auto-fill; user can still override below
+  });
+
   function resetForm(){
     form.reset(); editingId = null;
+    stateEl.value = "";
     cancelBtn.hidden = true;
     form.querySelector('button[type="submit"]').textContent = dataKey === "vendors" ? "Save vendor" : "Save client";
   }
@@ -160,7 +169,11 @@ function makePartyModule(prefix, dataKey, formId){
       toast("That GSTIN doesn't look valid — check the format (15 characters).");
       return;
     }
-    const state = stateCodeFromGSTIN(gstin);
+    if(!stateEl.value){
+      toast("Please select the state.");
+      return;
+    }
+    const state = stateEl.value;
     const record = {
       id: editingId || uid(),
       name: nameEl.value.trim(),
@@ -194,7 +207,7 @@ function makePartyModule(prefix, dataKey, formId){
 
     tbody.querySelectorAll('[data-act="edit"]').forEach(b=>b.addEventListener("click", ()=>{
       const v = DATA[dataKey].find(x=>x.id===b.dataset.id);
-      nameEl.value = v.name; gstinEl.value = v.gstin; addrEl.value = v.address||"";
+      nameEl.value = v.name; gstinEl.value = v.gstin; stateEl.value = v.state||""; addrEl.value = v.address||"";
       editingId = v.id;
       cancelBtn.hidden = false;
       form.querySelector('button[type="submit"]').textContent = "Save changes";
@@ -228,6 +241,7 @@ function makeEntryModule(prefix, dataKey, partyKey, formId){
   const form = document.getElementById(formId);
   const nameEl = document.getElementById(`${prefix}-partyName`);
   const gstinEl = document.getElementById(`${prefix}-gstin`);
+  const stateEl = document.getElementById(`${prefix}-state`);
   const dateEl = document.getElementById(`${prefix}-date`);
   const billEl = document.getElementById(`${prefix}-billNo`);
   const taxableEl = document.getElementById(`${prefix}-taxable`);
@@ -247,44 +261,48 @@ function makeEntryModule(prefix, dataKey, partyKey, formId){
   let editingId = null;
 
   dateEl.value = todayISO();
+  populateStateSelect(stateEl, true);
 
-  // Autofill GSTIN when a saved party name is chosen
+  // Autofill GSTIN + state when a saved party name is chosen
   nameEl.addEventListener("input", ()=>{
     const match = DATA[partyKey].find(p=>p.name.toLowerCase() === nameEl.value.trim().toLowerCase());
-    if(match) gstinEl.value = match.gstin;
-    checkDupe();
+    if(match){ gstinEl.value = match.gstin; if(match.state) stateEl.value = match.state; }
+    checkDupe(); updatePreview();
   });
   rateEl.addEventListener("change", ()=>{
     rateCustomWrap.hidden = rateEl.value !== "custom";
     updatePreview();
   });
-  [gstinEl, taxableEl, rateCustomEl, freightEl].forEach(el=>el.addEventListener("input", updatePreview));
+  [gstinEl, stateEl, taxableEl, rateCustomEl, freightEl].forEach(el=>el.addEventListener("input", updatePreview));
   billEl.addEventListener("input", checkDupe);
-  gstinEl.addEventListener("input", checkDupe);
+  gstinEl.addEventListener("input", ()=>{
+    // Auto-fill state from GSTIN, but never overrides a state the user just picked by hand
+    const code = stateCodeFromGSTIN(gstinEl.value.trim().toUpperCase());
+    if(code) stateEl.value = code;
+    checkDupe();
+  });
   gstinEl.addEventListener("blur", ()=>{ gstinEl.value = gstinEl.value.trim().toUpperCase(); updatePreview(); });
 
   function currentRate(){
     return rateEl.value === "custom" ? (parseFloat(rateCustomEl.value)||0) : parseFloat(rateEl.value);
   }
   function isInState(){
-    const partyState = stateCodeFromGSTIN(gstinEl.value.trim().toUpperCase());
-    return partyState && partyState === DATA.settings.bizState;
+    return !!stateEl.value && stateEl.value === DATA.settings.bizState;
   }
   function updatePreview(){
     const taxable = parseFloat(taxableEl.value)||0;
     const freight = parseFloat(freightEl.value)||0;
     const rate = currentRate();
     if(!taxable && !freight){ preview.classList.remove("show"); return; }
-    const partyCode = stateCodeFromGSTIN(gstinEl.value.trim().toUpperCase());
     const inState = isInState();
     const {cgst, sgst, igst} = computeGst(taxable, rate, inState);
     const total = round2(taxable + cgst + sgst + igst + freight);
     let taxLine = inState
       ? `CGST ₹${fmt(cgst)} + SGST ₹${fmt(sgst)}`
       : `IGST ₹${fmt(igst)}`;
-    let stateLine = partyCode
-      ? (inState ? `In-state (${STATE_NAME[partyCode]})` : `Out-of-state (${STATE_NAME[partyCode]})`)
-      : "Enter a valid GSTIN to detect state";
+    let stateLine = stateEl.value
+      ? (inState ? `In-state (${STATE_NAME[stateEl.value]})` : `Out-of-state (${STATE_NAME[stateEl.value]})`)
+      : "Select a state (or enter a GSTIN to auto-detect it)";
     preview.classList.add("show");
     preview.textContent = `${rate}% on ₹${fmt(taxable)} → ${taxLine} · Freight ₹${fmt(freight)} · Total ₹${fmt(total)} · ${stateLine}`;
   }
@@ -299,7 +317,7 @@ function makeEntryModule(prefix, dataKey, partyKey, formId){
 
   function resetForm(){
     form.reset(); dateEl.value = todayISO();
-    freightEl.value = "0"; rateEl.value = "18"; rateCustomWrap.hidden = true;
+    freightEl.value = "0"; rateEl.value = "18"; rateCustomWrap.hidden = true; stateEl.value = "";
     editingId = null; cancelBtn.hidden = true; dupeWarning.hidden = true;
     preview.classList.remove("show");
     submitBtn.textContent = "Add entry";
@@ -313,7 +331,11 @@ function makeEntryModule(prefix, dataKey, partyKey, formId){
       toast("That GSTIN doesn't look valid — check the format (15 characters).");
       return;
     }
-    const state = stateCodeFromGSTIN(gstin);
+    if(!stateEl.value){
+      toast("Please select the party's state.");
+      return;
+    }
+    const state = stateEl.value;
     const inState = isInState();
     const taxable = round2(parseFloat(taxableEl.value)||0);
     const freight = round2(parseFloat(freightEl.value)||0);
@@ -357,6 +379,7 @@ function makeEntryModule(prefix, dataKey, partyKey, formId){
       <tr>
         <td>${escapeHtml(e.party)}</td>
         <td>${escapeHtml(e.gstin)}</td>
+        <td>${escapeHtml(STATE_NAME[e.state]||"—")}</td>
         <td>${e.date}</td>
         <td>${escapeHtml(e.billNo)}</td>
         <td class="num">${fmt(e.taxable)}</td>
@@ -374,7 +397,7 @@ function makeEntryModule(prefix, dataKey, partyKey, formId){
 
     tbody.querySelectorAll('[data-act="edit"]').forEach(b=>b.addEventListener("click", ()=>{
       const e = DATA[dataKey].find(x=>x.id===b.dataset.id);
-      nameEl.value = e.party; gstinEl.value = e.gstin; dateEl.value = e.date; billEl.value = e.billNo;
+      nameEl.value = e.party; gstinEl.value = e.gstin; stateEl.value = e.state||""; dateEl.value = e.date; billEl.value = e.billNo;
       taxableEl.value = e.taxable; freightEl.value = e.freight;
       if(GST_RATES.includes(e.rate)){ rateEl.value = String(e.rate); rateCustomWrap.hidden = true; }
       else { rateEl.value = "custom"; rateCustomWrap.hidden = false; rateCustomEl.value = e.rate; }
