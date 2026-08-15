@@ -18,12 +18,89 @@ const STATE_CODES = [
 const STATE_NAME = Object.fromEntries(STATE_CODES);
 const GST_RATES = [0, 0.25, 3, 5, 12, 18, 28];
 
+/* ---------- City → state lookup (for autofill; not exhaustive — falls back to
+   manual state selection for any city not in this list, or you can just type
+   the state name into the city box if unsure) ---------- */
+const CITY_STATE_PAIRS = [
+  // Madhya Pradesh
+  ["Indore","23"],["Bhopal","23"],["Gwalior","23"],["Jabalpur","23"],["Ujjain","23"],["Dewas","23"],
+  ["Ratlam","23"],["Sagar","23"],["Rewa","23"],["Satna","23"],["Pithampur","23"],["Mandsaur","23"],
+  ["Neemuch","23"],["Khandwa","23"],["Burhanpur","23"],["Chanderi","23"],["Maheshwar","23"],
+  // Maharashtra
+  ["Mumbai","27"],["Bombay","27"],["Pune","27"],["Nagpur","27"],["Nashik","27"],["Aurangabad","27"],
+  ["Chhatrapati Sambhajinagar","27"],["Solapur","27"],["Bhiwandi","27"],["Ichalkaranji","27"],
+  ["Malegaon","27"],["Kolhapur","27"],["Sangli","27"],["Thane","27"],["Navi Mumbai","27"],
+  // Gujarat
+  ["Ahmedabad","24"],["Surat","24"],["Vadodara","24"],["Baroda","24"],["Rajkot","24"],["Bhavnagar","24"],
+  ["Jamnagar","24"],["Gandhinagar","24"],["Anand","24"],
+  // Rajasthan
+  ["Jaipur","08"],["Jodhpur","08"],["Udaipur","08"],["Kota","08"],["Bhilwara","08"],["Ajmer","08"],
+  ["Bikaner","08"],["Pali","08"],["Balotra","08"],["Sanganer","08"],
+  // Delhi
+  ["Delhi","07"],["New Delhi","07"],
+  // Uttar Pradesh
+  ["Lucknow","09"],["Kanpur","09"],["Noida","09"],["Ghaziabad","09"],["Agra","09"],["Varanasi","09"],
+  ["Meerut","09"],["Moradabad","09"],["Bareilly","09"],["Aligarh","09"],["Prayagraj","09"],["Allahabad","09"],
+  // Punjab
+  ["Ludhiana","03"],["Amritsar","03"],["Jalandhar","03"],["Patiala","03"],["Bathinda","03"],
+  // Haryana
+  ["Gurugram","06"],["Gurgaon","06"],["Faridabad","06"],["Panipat","06"],["Karnal","06"],["Hisar","06"],
+  ["Sonipat","06"],["Panchkula","06"],
+  // West Bengal
+  ["Kolkata","19"],["Calcutta","19"],["Howrah","19"],["Durgapur","19"],["Siliguri","19"],["Asansol","19"],
+  // Tamil Nadu
+  ["Chennai","33"],["Madras","33"],["Coimbatore","33"],["Tiruppur","33"],["Tirupur","33"],["Erode","33"],
+  ["Madurai","33"],["Salem","33"],["Karur","33"],
+  // Karnataka
+  ["Bengaluru","29"],["Bangalore","29"],["Mysuru","29"],["Mysore","29"],["Hubballi","29"],["Belagavi","29"],
+  // Telangana
+  ["Hyderabad","36"],["Warangal","36"],["Secunderabad","36"],
+  // Andhra Pradesh
+  ["Vijayawada","37"],["Visakhapatnam","37"],["Guntur","37"],["Tirupati","37"],
+  // Kerala
+  ["Kochi","32"],["Cochin","32"],["Thiruvananthapuram","32"],["Trivandrum","32"],["Kozhikode","32"],["Kannur","32"],
+  // Bihar
+  ["Patna","10"],["Gaya","10"],["Bhagalpur","10"],["Muzaffarpur","10"],
+  // Jharkhand
+  ["Ranchi","20"],["Jamshedpur","20"],["Dhanbad","20"],
+  // Odisha
+  ["Bhubaneswar","21"],["Cuttack","21"],["Rourkela","21"],
+  // Chhattisgarh
+  ["Raipur","22"],["Bhilai","22"],["Bilaspur","22"],["Durg","22"],
+  // Assam
+  ["Guwahati","18"],["Silchar","18"],
+  // Uttarakhand
+  ["Dehradun","05"],["Haridwar","05"],["Roorkee","05"],
+  // Himachal Pradesh
+  ["Shimla","02"],["Solan","02"],
+  // Jammu & Kashmir
+  ["Srinagar","01"],["Jammu","01"],
+  // Goa
+  ["Panaji","30"],["Margao","30"],["Vasco da Gama","30"],
+  // Puducherry
+  ["Puducherry","34"],["Pondicherry","34"],
+  // Chandigarh
+  ["Chandigarh","04"],
+  // North-east & other UT capitals
+  ["Shillong","17"],["Agartala","16"],["Imphal","14"],["Aizawl","15"],["Kohima","13"],["Itanagar","12"],["Gangtok","11"],
+  ["Daman","26"],["Diu","26"],["Silvassa","26"],
+  ["Port Blair","35"],["Kavaratti","31"],["Leh","38"]
+];
+function normalizeCity(s){ return String(s||"").trim().toLowerCase().replace(/\s+/g," "); }
+const CITY_STATE = Object.fromEntries(CITY_STATE_PAIRS.map(([name,code])=>[normalizeCity(name),code]));
+function stateFromCity(city){ return CITY_STATE[normalizeCity(city)] || null; }
+function populateCityDatalist(){
+  const dl = document.getElementById("cityList");
+  const names = [...new Set(CITY_STATE_PAIRS.map(([n])=>n))].sort();
+  dl.innerHTML = names.map(n=>`<option value="${escapeHtml(n)}">`).join("");
+}
+
 /* ---------- Storage ---------- */
 const STORAGE_KEY = "gstLedgerData_v1";
 
 function defaultData(){
   return {
-    settings: { bizName: "", bizGSTIN: "", bizState: "23" },
+    settings: { bizName: "", bizCity: "Indore", bizGSTIN: "", bizState: "23" },
     vendors: [], clients: [], purchases: [], sales: []
   };
 }
@@ -85,11 +162,22 @@ function populateStateSelect(sel, includeBlank){
 const settingsToggle = document.getElementById("settingsToggle");
 const settingsPanel = document.getElementById("settingsPanel");
 const bizStateSel = document.getElementById("bizState");
+const bizCityEl = document.getElementById("bizCity");
+const bizGSTINEl = document.getElementById("bizGSTIN");
 populateStateSelect(bizStateSel);
+bizCityEl.addEventListener("input", ()=>{
+  const code = stateFromCity(bizCityEl.value);
+  if(code) bizStateSel.value = code;
+});
+bizGSTINEl.addEventListener("input", ()=>{
+  const code = stateCodeFromGSTIN(bizGSTINEl.value.trim().toUpperCase());
+  if(code) bizStateSel.value = code;
+});
 
 function loadSettingsIntoForm(){
   document.getElementById("bizName").value = DATA.settings.bizName;
-  document.getElementById("bizGSTIN").value = DATA.settings.bizGSTIN;
+  bizCityEl.value = DATA.settings.bizCity || "";
+  bizGSTINEl.value = DATA.settings.bizGSTIN;
   bizStateSel.value = DATA.settings.bizState || "23";
   updateSettingsSummary();
 }
@@ -99,7 +187,7 @@ function updateSettingsSummary(){
   document.getElementById("settingsBtnLabel").textContent =
     DATA.settings.bizName ? `${DATA.settings.bizName} · ${stateName}` : "Business settings";
   document.getElementById("bizStateAuto").textContent =
-    `Entries are marked in-state when the party's GSTIN starts with ${DATA.settings.bizState} (${stateName}).`;
+    `Entries are marked in-state when the party's city/GSTIN resolves to ${stateName}.`;
 }
 settingsToggle.addEventListener("click", ()=>{
   const open = settingsPanel.hidden;
@@ -107,12 +195,13 @@ settingsToggle.addEventListener("click", ()=>{
   settingsToggle.setAttribute("aria-expanded", String(open));
 });
 document.getElementById("saveSettings").addEventListener("click", ()=>{
-  const gstin = document.getElementById("bizGSTIN").value.trim().toUpperCase();
+  const gstin = bizGSTINEl.value.trim().toUpperCase();
   if(gstin && !isValidGSTIN(gstin)){
     toast("That GSTIN doesn't look valid — check the format.");
     return;
   }
   DATA.settings.bizName = document.getElementById("bizName").value.trim();
+  DATA.settings.bizCity = bizCityEl.value.trim();
   DATA.settings.bizGSTIN = gstin;
   DATA.settings.bizState = bizStateSel.value;
   saveData();
@@ -141,6 +230,7 @@ function makePartyModule(prefix, dataKey, formId){
   const form = document.getElementById(formId);
   const nameEl = document.getElementById(`${prefix}-name`);
   const gstinEl = document.getElementById(`${prefix}-gstin`);
+  const cityEl = document.getElementById(`${prefix}-city`);
   const stateEl = document.getElementById(`${prefix}-state`);
   const addrEl = document.getElementById(`${prefix}-address`);
   const tbody = document.getElementById(`${prefix}-tbody`);
@@ -151,6 +241,10 @@ function makePartyModule(prefix, dataKey, formId){
   populateStateSelect(stateEl, true);
   gstinEl.addEventListener("input", ()=>{
     const code = stateCodeFromGSTIN(gstinEl.value.trim().toUpperCase());
+    if(code) stateEl.value = code; // auto-fill; user can still override below
+  });
+  cityEl.addEventListener("input", ()=>{
+    const code = stateFromCity(cityEl.value);
     if(code) stateEl.value = code; // auto-fill; user can still override below
   });
 
@@ -177,7 +271,7 @@ function makePartyModule(prefix, dataKey, formId){
     const record = {
       id: editingId || uid(),
       name: nameEl.value.trim(),
-      gstin, state,
+      gstin, city: cityEl.value.trim(), state,
       address: addrEl.value.trim()
     };
     const list = DATA[dataKey];
@@ -197,6 +291,7 @@ function makePartyModule(prefix, dataKey, formId){
       <tr>
         <td>${escapeHtml(v.name)}</td>
         <td>${escapeHtml(v.gstin)}</td>
+        <td>${escapeHtml(v.city||"—")}</td>
         <td>${escapeHtml(STATE_NAME[v.state]||"—")}</td>
         <td>${escapeHtml(v.address||"—")}</td>
         <td class="row-actions">
@@ -207,7 +302,7 @@ function makePartyModule(prefix, dataKey, formId){
 
     tbody.querySelectorAll('[data-act="edit"]').forEach(b=>b.addEventListener("click", ()=>{
       const v = DATA[dataKey].find(x=>x.id===b.dataset.id);
-      nameEl.value = v.name; gstinEl.value = v.gstin; stateEl.value = v.state||""; addrEl.value = v.address||"";
+      nameEl.value = v.name; gstinEl.value = v.gstin; cityEl.value = v.city||""; stateEl.value = v.state||""; addrEl.value = v.address||"";
       editingId = v.id;
       cancelBtn.hidden = false;
       form.querySelector('button[type="submit"]').textContent = "Save changes";
@@ -241,6 +336,7 @@ function makeEntryModule(prefix, dataKey, partyKey, formId){
   const form = document.getElementById(formId);
   const nameEl = document.getElementById(`${prefix}-partyName`);
   const gstinEl = document.getElementById(`${prefix}-gstin`);
+  const cityEl = document.getElementById(`${prefix}-city`);
   const stateEl = document.getElementById(`${prefix}-state`);
   const dateEl = document.getElementById(`${prefix}-date`);
   const billEl = document.getElementById(`${prefix}-billNo`);
@@ -263,17 +359,17 @@ function makeEntryModule(prefix, dataKey, partyKey, formId){
   dateEl.value = todayISO();
   populateStateSelect(stateEl, true);
 
-  // Autofill GSTIN + state when a saved party name is chosen
+  // Autofill GSTIN + city + state when a saved party name is chosen
   nameEl.addEventListener("input", ()=>{
     const match = DATA[partyKey].find(p=>p.name.toLowerCase() === nameEl.value.trim().toLowerCase());
-    if(match){ gstinEl.value = match.gstin; if(match.state) stateEl.value = match.state; }
+    if(match){ gstinEl.value = match.gstin; if(match.city) cityEl.value = match.city; if(match.state) stateEl.value = match.state; }
     checkDupe(); updatePreview();
   });
   rateEl.addEventListener("change", ()=>{
     rateCustomWrap.hidden = rateEl.value !== "custom";
     updatePreview();
   });
-  [gstinEl, stateEl, taxableEl, rateCustomEl, freightEl].forEach(el=>el.addEventListener("input", updatePreview));
+  [gstinEl, cityEl, stateEl, taxableEl, rateCustomEl, freightEl].forEach(el=>el.addEventListener("input", updatePreview));
   billEl.addEventListener("input", checkDupe);
   gstinEl.addEventListener("input", ()=>{
     // Auto-fill state from GSTIN, but never overrides a state the user just picked by hand
@@ -282,6 +378,10 @@ function makeEntryModule(prefix, dataKey, partyKey, formId){
     checkDupe();
   });
   gstinEl.addEventListener("blur", ()=>{ gstinEl.value = gstinEl.value.trim().toUpperCase(); updatePreview(); });
+  cityEl.addEventListener("input", ()=>{
+    const code = stateFromCity(cityEl.value);
+    if(code) stateEl.value = code;
+  });
 
   function currentRate(){
     return rateEl.value === "custom" ? (parseFloat(rateCustomEl.value)||0) : parseFloat(rateEl.value);
@@ -302,7 +402,7 @@ function makeEntryModule(prefix, dataKey, partyKey, formId){
       : `IGST ₹${fmt(igst)}`;
     let stateLine = stateEl.value
       ? (inState ? `In-state (${STATE_NAME[stateEl.value]})` : `Out-of-state (${STATE_NAME[stateEl.value]})`)
-      : "Select a state (or enter a GSTIN to auto-detect it)";
+      : "Type a city (or enter a GSTIN) to auto-detect the state";
     preview.classList.add("show");
     preview.textContent = `${rate}% on ₹${fmt(taxable)} → ${taxLine} · Freight ₹${fmt(freight)} · Total ₹${fmt(total)} · ${stateLine}`;
   }
@@ -346,7 +446,7 @@ function makeEntryModule(prefix, dataKey, partyKey, formId){
     const record = {
       id: editingId || uid(),
       party: nameEl.value.trim(),
-      gstin, state,
+      gstin, city: cityEl.value.trim(), state,
       date: dateEl.value,
       billNo: billEl.value.trim(),
       taxable, rate, cgst, sgst, igst, freight, total,
@@ -379,6 +479,7 @@ function makeEntryModule(prefix, dataKey, partyKey, formId){
       <tr>
         <td>${escapeHtml(e.party)}</td>
         <td>${escapeHtml(e.gstin)}</td>
+        <td>${escapeHtml(e.city||"—")}</td>
         <td>${escapeHtml(STATE_NAME[e.state]||"—")}</td>
         <td>${e.date}</td>
         <td>${escapeHtml(e.billNo)}</td>
@@ -397,7 +498,7 @@ function makeEntryModule(prefix, dataKey, partyKey, formId){
 
     tbody.querySelectorAll('[data-act="edit"]').forEach(b=>b.addEventListener("click", ()=>{
       const e = DATA[dataKey].find(x=>x.id===b.dataset.id);
-      nameEl.value = e.party; gstinEl.value = e.gstin; stateEl.value = e.state||""; dateEl.value = e.date; billEl.value = e.billNo;
+      nameEl.value = e.party; gstinEl.value = e.gstin; cityEl.value = e.city||""; stateEl.value = e.state||""; dateEl.value = e.date; billEl.value = e.billNo;
       taxableEl.value = e.taxable; freightEl.value = e.freight;
       if(GST_RATES.includes(e.rate)){ rateEl.value = String(e.rate); rateCustomWrap.hidden = true; }
       else { rateEl.value = "custom"; rateCustomWrap.hidden = false; rateCustomEl.value = e.rate; }
@@ -480,18 +581,21 @@ function renderSummary(){
 /* ============================================================
    Excel export / import (SheetJS)
    ============================================================ */
-const ENTRY_HEADERS = ["Party","GSTIN","State Code","Date","Bill No","Taxable","Rate %","CGST","SGST","IGST","Freight","Total","In-State"];
+const ENTRY_HEADERS = ["Party","GSTIN","City","State Code","Date","Bill No","Taxable","Rate %","CGST","SGST","IGST","Freight","Total","In-State"];
 function entryToRow(e){
-  return [e.party, e.gstin, e.state, e.date, e.billNo, e.taxable, e.rate, e.cgst, e.sgst, e.igst, e.freight, e.total, e.inState ? "Yes" : "No"];
+  return [e.party, e.gstin, e.city||"", e.state, e.date, e.billNo, e.taxable, e.rate, e.cgst, e.sgst, e.igst, e.freight, e.total, e.inState ? "Yes" : "No"];
 }
-function rowToEntry(row){
-  const [party,gstin,state,date,billNo,taxable,rate,cgst,sgst,igst,freight,total,inState] = row;
+function rowToEntry(o){
+  const gstin = String(o["GSTIN"]||"").trim().toUpperCase();
+  const city = String(o["City"]||"").trim();
   return {
-    id: uid(), party: String(party||"").trim(), gstin: String(gstin||"").trim().toUpperCase(),
-    state: String(state||stateCodeFromGSTIN(gstin)||""), date: normalizeDate(date), billNo: String(billNo||"").trim(),
-    taxable: Number(taxable)||0, rate: Number(rate)||0, cgst: Number(cgst)||0, sgst: Number(sgst)||0,
-    igst: Number(igst)||0, freight: Number(freight)||0, total: Number(total)||0,
-    inState: String(inState).toLowerCase()==="yes"
+    id: uid(), party: String(o["Party"]||"").trim(), gstin,
+    city, state: String(o["State Code"]||stateFromCity(city)||stateCodeFromGSTIN(gstin)||""),
+    date: normalizeDate(o["Date"]), billNo: String(o["Bill No"]||"").trim(),
+    taxable: Number(o["Taxable"])||0, rate: Number(o["Rate %"])||0,
+    cgst: Number(o["CGST"])||0, sgst: Number(o["SGST"])||0, igst: Number(o["IGST"])||0,
+    freight: Number(o["Freight"])||0, total: Number(o["Total"])||0,
+    inState: String(o["In-State"]).toLowerCase()==="yes"
   };
 }
 function normalizeDate(d){
@@ -502,12 +606,16 @@ function normalizeDate(d){
   }
   return String(d||"").slice(0,10);
 }
-const PARTY_HEADERS = ["Name","GSTIN","State Code","Address"];
-function partyToRow(p){ return [p.name, p.gstin, p.state, p.address||""]; }
-function rowToParty(row){
-  const [name,gstin,state,address] = row;
-  return { id: uid(), name: String(name||"").trim(), gstin: String(gstin||"").trim().toUpperCase(),
-    state: String(state||stateCodeFromGSTIN(gstin)||""), address: String(address||"").trim() };
+const PARTY_HEADERS = ["Name","GSTIN","City","State Code","Address"];
+function partyToRow(p){ return [p.name, p.gstin, p.city||"", p.state, p.address||""]; }
+function rowToParty(o){
+  const gstin = String(o["GSTIN"]||"").trim().toUpperCase();
+  const city = String(o["City"]||"").trim();
+  return {
+    id: uid(), name: String(o["Name"]||"").trim(), gstin,
+    city, state: String(o["State Code"]||stateFromCity(city)||stateCodeFromGSTIN(gstin)||""),
+    address: String(o["Address"]||"").trim()
+  };
 }
 
 function buildWorkbook(){
@@ -517,8 +625,8 @@ function buildWorkbook(){
   const vendorWs = XLSX.utils.aoa_to_sheet([PARTY_HEADERS, ...DATA.vendors.map(partyToRow)]);
   const clientWs = XLSX.utils.aoa_to_sheet([PARTY_HEADERS, ...DATA.clients.map(partyToRow)]);
   const settingsWs = XLSX.utils.aoa_to_sheet([
-    ["Business Name","Business GSTIN","Business State Code"],
-    [DATA.settings.bizName, DATA.settings.bizGSTIN, DATA.settings.bizState]
+    ["Business Name","Business City","Business GSTIN","Business State Code"],
+    [DATA.settings.bizName, DATA.settings.bizCity||"", DATA.settings.bizGSTIN, DATA.settings.bizState]
   ]);
   XLSX.utils.book_append_sheet(wb, purchaseWs, "Purchase");
   XLSX.utils.book_append_sheet(wb, saleWs, "Sale");
@@ -553,15 +661,19 @@ document.getElementById("importFile").addEventListener("change", (e)=>{
   reader.onload = (ev)=>{
     try{
       const wb = XLSX.read(ev.target.result, { type: "array", cellDates:false });
-      const sheetRows = (name)=>{
+      // Header-driven so backups from older versions of this app (before the
+      // City column existed, or with columns in a different order) still import cleanly.
+      const sheetObjs = (name)=>{
         if(!wb.Sheets[name]) return [];
         const rows = XLSX.utils.sheet_to_json(wb.Sheets[name], { header:1, raw:true });
-        return rows.slice(1).filter(r=>r && r.length && r[0]);
+        const headers = rows[0]||[];
+        return rows.slice(1).filter(r=>r && r.length && r[0])
+          .map(r=>Object.fromEntries(headers.map((h,i)=>[h, r[i]])));
       };
-      const newPurchases = sheetRows("Purchase").map(rowToEntry);
-      const newSales = sheetRows("Sale").map(rowToEntry);
-      const newVendors = sheetRows("Vendors").map(rowToParty);
-      const newClients = sheetRows("Clients").map(rowToParty);
+      const newPurchases = sheetObjs("Purchase").map(rowToEntry);
+      const newSales = sheetObjs("Sale").map(rowToEntry);
+      const newVendors = sheetObjs("Vendors").map(rowToParty);
+      const newClients = sheetObjs("Clients").map(rowToParty);
       const settingsRows = wb.Sheets["Settings"] ? XLSX.utils.sheet_to_json(wb.Sheets["Settings"], {header:1}) : null;
 
       if(!confirm(`Import ${newPurchases.length} purchase, ${newSales.length} sale, ${newVendors.length} vendor and ${newClients.length} client rows? This replaces your current data — export a backup first if unsure.`)) {
@@ -572,9 +684,13 @@ document.getElementById("importFile").addEventListener("change", (e)=>{
       DATA.vendors = newVendors;
       DATA.clients = newClients;
       if(settingsRows && settingsRows[1]){
-        DATA.settings.bizName = settingsRows[1][0]||"";
-        DATA.settings.bizGSTIN = settingsRows[1][1]||"";
-        DATA.settings.bizState = settingsRows[1][2]||"23";
+        const sHeaders = settingsRows[0]||[];
+        const sVals = settingsRows[1];
+        const sObj = Object.fromEntries(sHeaders.map((h,i)=>[h, sVals[i]]));
+        DATA.settings.bizName = sObj["Business Name"]||"";
+        DATA.settings.bizCity = sObj["Business City"]||"";
+        DATA.settings.bizGSTIN = sObj["Business GSTIN"]||"";
+        DATA.settings.bizState = sObj["Business State Code"]||"23";
       }
       saveData();
       renderAll();
@@ -600,4 +716,5 @@ function renderAll(){
   saleModule.render();
   renderSummary();
 }
+populateCityDatalist();
 renderAll();

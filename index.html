@@ -12,6 +12,7 @@
 <body>
 
 <div class="app">
+  <datalist id="cityList"></datalist>
 
   <!-- ===== Header ===== -->
   <header class="header">
@@ -33,10 +34,13 @@
       <label>Business name
         <input type="text" id="bizName" placeholder="e.g. Karan Textiles">
       </label>
+      <label>Business city
+        <input type="text" id="bizCity" list="cityList" placeholder="e.g. Indore">
+      </label>
       <label>Business GSTIN
         <input type="text" id="bizGSTIN" placeholder="23AAAAA0000A1Z5" maxlength="15" autocapitalize="characters">
       </label>
-      <label>Business state
+      <label>Business state <span class="optional">(auto-fills from city)</span>
         <select id="bizState"></select>
       </label>
       <div class="settings-note" id="bizStateAuto"></div>
@@ -69,7 +73,10 @@
         <label>GSTIN
           <input type="text" id="p-gstin" placeholder="23AAAAA0000A1Z5" maxlength="15" autocapitalize="characters" required>
         </label>
-        <label>State <span class="optional">(auto-fills from GSTIN)</span>
+        <label>City
+          <input type="text" id="p-city" list="cityList" placeholder="e.g. Surat">
+        </label>
+        <label>State <span class="optional">(auto-fills from city/GSTIN)</span>
           <select id="p-state"></select>
         </label>
         <label>Date
@@ -126,7 +133,7 @@
       <table id="p-table">
         <thead>
           <tr>
-            <th>Vendor</th><th>GSTIN</th><th>State</th><th>Date</th><th>Bill #</th>
+            <th>Vendor</th><th>GSTIN</th><th>City</th><th>State</th><th>Date</th><th>Bill #</th>
             <th class="num">Taxable</th><th class="num">CGST</th><th class="num">SGST</th><th class="num">IGST</th>
             <th class="num">Freight</th><th class="num">Total</th><th>Type</th><th></th>
           </tr>
@@ -148,7 +155,10 @@
         <label>GSTIN
           <input type="text" id="s-gstin" placeholder="23AAAAA0000A1Z5" maxlength="15" autocapitalize="characters" required>
         </label>
-        <label>State <span class="optional">(auto-fills from GSTIN)</span>
+        <label>City
+          <input type="text" id="s-city" list="cityList" placeholder="e.g. Mumbai">
+        </label>
+        <label>State <span class="optional">(auto-fills from city/GSTIN)</span>
           <select id="s-state"></select>
         </label>
         <label>Date
@@ -205,7 +215,7 @@
       <table id="s-table">
         <thead>
           <tr>
-            <th>Client</th><th>GSTIN</th><th>State</th><th>Date</th><th>Bill #</th>
+            <th>Client</th><th>GSTIN</th><th>City</th><th>State</th><th>Date</th><th>Bill #</th>
             <th class="num">Taxable</th><th class="num">CGST</th><th class="num">SGST</th><th class="num">IGST</th>
             <th class="num">Freight</th><th class="num">Total</th><th>Type</th><th></th>
           </tr>
@@ -226,7 +236,10 @@
         <label>GSTIN
           <input type="text" id="v-gstin" maxlength="15" autocapitalize="characters" required>
         </label>
-        <label>State <span class="optional">(auto-fills from GSTIN)</span>
+        <label>City
+          <input type="text" id="v-city" list="cityList" placeholder="e.g. Surat">
+        </label>
+        <label>State <span class="optional">(auto-fills from city/GSTIN)</span>
           <select id="v-state"></select>
         </label>
         <label class="grow">Address <span class="optional">(optional)</span>
@@ -240,7 +253,7 @@
     </form>
     <div class="table-wrap">
       <table id="v-table">
-        <thead><tr><th>Name</th><th>GSTIN</th><th>State</th><th>Address</th><th></th></tr></thead>
+        <thead><tr><th>Name</th><th>GSTIN</th><th>City</th><th>State</th><th>Address</th><th></th></tr></thead>
         <tbody id="v-tbody"></tbody>
       </table>
       <p class="empty-state" id="v-empty" hidden>No vendors saved yet. Add one above — it'll appear as an autofill suggestion on the Purchase tab.</p>
@@ -257,7 +270,10 @@
         <label>GSTIN
           <input type="text" id="c-gstin" maxlength="15" autocapitalize="characters" required>
         </label>
-        <label>State <span class="optional">(auto-fills from GSTIN)</span>
+        <label>City
+          <input type="text" id="c-city" list="cityList" placeholder="e.g. Mumbai">
+        </label>
+        <label>State <span class="optional">(auto-fills from city/GSTIN)</span>
           <select id="c-state"></select>
         </label>
         <label class="grow">Address <span class="optional">(optional)</span>
@@ -271,7 +287,7 @@
     </form>
     <div class="table-wrap">
       <table id="c-table">
-        <thead><tr><th>Name</th><th>GSTIN</th><th>State</th><th>Address</th><th></th></tr></thead>
+        <thead><tr><th>Name</th><th>GSTIN</th><th>City</th><th>State</th><th>Address</th><th></th></tr></thead>
         <tbody id="c-tbody"></tbody>
       </table>
       <p class="empty-state" id="c-empty" hidden>No clients saved yet. Add one above — it'll appear as an autofill suggestion on the Sale tab.</p>
